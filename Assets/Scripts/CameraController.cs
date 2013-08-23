@@ -14,7 +14,7 @@ public class CameraController : MonoBehaviour {
 
 	void Awake() {
 		thisTransform = transform;
-		targetTransform = carParts[ 0 ].transform;
+		targetTransform = parentTarget;
 		thisTransform.rotation = Quaternion.LookRotation( Vector3.zero - thisTransform.position );
 		initialPosition = thisTransform.position;
 		GenerateCarPartDictionary();
@@ -24,15 +24,17 @@ public class CameraController : MonoBehaviour {
 	}
 	
 	public GameObject[] carParts;
-	public float[] distances;
+	public Vector3[] cameraOffsets;
 		
-	private Dictionary< string , Vector4 > carPartDictionary = new Dictionary< string , Vector4 >();
+	private Dictionary< string , Vector3 > carPartDictionary = new Dictionary< string , Vector3 >();
 	
 	private void GenerateCarPartDictionary () {
 		for ( int i = 0 ; i < carParts.Length ; i++ ) {
 			//Not a good idea. The Vector4 holds X, Y and Z plus camera distance -- but it turns out we need height and probably others. Better to do a linked list
-			Vector4 cameraPosition = new Vector4( carParts[ i ].transform.position.x , carParts[ i ].transform.position.y , carParts[ i ].transform.position.z , distances[ i ] );
-			carPartDictionary.Add( ( string ) carParts[ i ].name , cameraPosition );
+			//New idea: We don't need the position, since we get that from targetTransform
+			//Instead, a Vector3 with offsets.
+			Vector3 cameraOffset = new Vector3( cameraOffsets[ i ].x , cameraOffsets[ i ].y , cameraOffsets[ i ].z );
+			carPartDictionary.Add( ( string ) carParts[ i ].name , cameraOffset );
 		}
 	}
 		
@@ -42,25 +44,31 @@ public class CameraController : MonoBehaviour {
 	public float positioningRotationSpeed;
 			
 	private void RotateCamera ( Vector3 mouseDisplacement ) {
+		
 		//Look at target
 		thisTransform.rotation = Quaternion.Slerp( thisTransform.rotation , Quaternion.LookRotation( ( targetTransform.position - thisTransform.position ) + ( thisTransform.InverseTransformPoint( Vector3.zero ) - thisTransform.position ) ) , Time.deltaTime * positioningRotationSpeed );
+		
 		if ( Input.GetMouseButton( 1 ) && targetTransform != parentTarget ) {
-			//Fetch relative direction to target
-			//Vector3 relativeDirection = targetTransform.TransformDirection( targetTransform.position - thisTransform.position );
 			//Rotate along Y axis
 			thisTransform.RotateAround( targetTransform.position , thisTransform.TransformDirection( Vector3.right ) , ( mouseDisplacement.y * yRotationSpeed ) * Time.deltaTime );
 			//Rotate along X axis
 			thisTransform.RotateAround( targetTransform.position , thisTransform.TransformDirection( Vector3.up ) , ( mouseDisplacement.x * yRotationSpeed ) * Time.deltaTime );
 		} else thisTransform.position = Vector3.Slerp( thisTransform.position , initialPosition , resetRotationSpeed * Time.deltaTime );
-
 		
+		Vector3 newCameraPosition = targetTransform.position + ( targetTransform.position );
+		Debug.DrawLine( targetTransform.position , newCameraPosition , Color.yellow );
 	}
 	
 	public float cameraPositioningSpeed;
 	
 	private void PositionCamera () {
 		if ( !Input.GetMouseButton( 1 ) && targetTransform != parentTarget ) {
-			Vector3 newCameraPosition = Vector3.Slerp( thisTransform.position , new Vector3( carPartDictionary[ targetTransform.name ].x ,  carPartDictionary[ targetTransform.name ].y , carPartDictionary[ targetTransform.name ].z ) + ( parentTarget.TransformDirection( Vector3.back + ( Vector3.down * 2 ) ) * carPartDictionary[ targetTransform.name ].w ) + targetTransform.position , Time.deltaTime * cameraPositioningSpeed );
+			Vector3 newCameraPosition = Vector3.Slerp( 
+				thisTransform.position , new Vector3( targetTransform.position.x + carPartDictionary[ targetTransform.name ].x , 
+				targetTransform.position.y + carPartDictionary[ targetTransform.name ].y , 
+				targetTransform.position.z ) + ( parentTarget.TransformDirection( Vector3.back ) * carPartDictionary[ targetTransform.name ].z ) , 
+				Time.deltaTime * cameraPositioningSpeed
+				);
 			thisTransform.position = newCameraPosition;
 		}
 	}
